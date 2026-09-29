@@ -1,0 +1,23 @@
+feature,kind,signal,detail
+subcategory,categorical,0.47858871263412606,29% to 77% across 48 levels
+category,categorical,0.43182588793761123,34% to 77% across 13 levels
+state_raw,categorical,0.34796090326929563,37% to 71% across 40 levels
+log_goal_per_tier,numeric,0.3428095845363643,Spearman -0.343
+log_goal,numeric,0.26120649357815257,Spearman -0.261
+log_goal_vs_subcat_median,numeric,0.2188555827018846,Spearman -0.219
+log_goal_per_day,numeric,0.215855165611741,Spearman -0.216
+min_tier_pct_of_goal,numeric,0.17993030521459633,Spearman +0.180
+levels,numeric,0.14412116975288566,Spearman +0.144
+n_tiers_parsed,numeric,0.14412116975288566,Spearman +0.144
+log_city_project_count,numeric,0.1420000224293678,Spearman +0.142
+duration_days,numeric,0.132611373206358,Spearman -0.133
+launch_dow,numeric,0.03561904715404319,Spearman -0.036
+name_word_count,numeric,0.025511718187816744,Spearman +0.026
+name_upper_ratio,numeric,0.02391941069165184,Spearman +0.024
+name_length,numeric,0.020104392254786965,Spearman +0.020
+log_min_tier,numeric,0.015239766406340597,Spearman -0.015
+log_max_tier,numeric,0.011342728323408489,Spearman -0.011
+launch_year,numeric,0.010507466753434284,Spearman -0.011
+tier_spread,numeric,0.009217348372085496,Spearman -0.009
+launch_month,numeric,0.004594734225275029,Spearman -0.005
+median_tier,numeric,0.0024458554240359347,Spearman +0.002
