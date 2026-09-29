@@ -240,7 +240,6 @@ This project is licensed under the MIT License.
 ## References
 
 - [Kickstarter dataset on Kaggle](https://www.kaggle.com/parienza/kickstarter)
-- [Predicting the Success of Kickstarter Campaigns](https://towardsdatascience.com/predicting-the-success-of-kickstarter-campaigns-3f4a976419b9)
 - [scikit-learn documentation](https://scikit-learn.org/stable/)
 
 ---
