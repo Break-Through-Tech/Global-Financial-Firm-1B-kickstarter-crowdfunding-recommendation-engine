@@ -1,0 +1,14 @@
+column,reason
+pledged,Dollars raised. This IS the outcome.
+funded_percentage,pledged / goal. Mechanically determines success.
+backers,Count of people who pledged. Pure outcome.
+comments,Audience-generated volume; scales with backers.
+status,The raw target.
+success,The encoded target.
+funded_date,Campaign END date; unknown at launch.
+end_date,Parsed campaign end; unknown at launch.
+url,"Identifier, not a feature."
+project_id,"Identifier, not a feature."
+location,Superseded by city / state_raw.
+reward_levels,Raw string; superseded by parsed tier features.
+name,Raw string; superseded by parsed title features.
