@@ -285,5 +285,9 @@ def build_model_matrix(
         dtype="float64",
     )
     X = X.fillna(X.median(numeric_only=True))
+    # Cast everything to plain float64. The date-derived features arrive as
+    # pandas nullable Int dtypes, which scikit-learn cannot consume directly
+    # (numpy raises "Cannot interpret 'Int64Dtype()' as a data type").
+    X = X.astype("float64")
     y = df["success"]
     return X, y
