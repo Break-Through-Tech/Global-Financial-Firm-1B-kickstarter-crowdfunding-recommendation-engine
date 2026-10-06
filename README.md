@@ -215,7 +215,7 @@ with the Challenge Advisor before any model is trained.
 
 ---
 
-## Next Steps — October (Milestone 2 + 3)
+## Next Steps — October (Milestone 3)
 
 1. **Settle the `updates` question** and lock a leakage register before
    training anything.
