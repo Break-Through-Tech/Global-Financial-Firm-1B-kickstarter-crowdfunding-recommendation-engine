@@ -17,7 +17,7 @@ Challenge Advisor: Neha Panchal · AI Studio Coach: Darshan Ugale
 | Name             | GitHub Handle | Contribution                                                             |
 |------------------|---------------|--------------------------------------------------------------------------|
 | James Lu         | @jameslu06    | Data exploration, visualization, overall project coordination            |
-| Yero Barry       | @yourhandle   | Python development, AI/ML, prompt engineering, and team communication    |
+| Yero Barry       | @Ybarry2      | Python development, AI/ML, prompt engineering, and team communication    |
 | Faaliha Mohamed  | @yourhandle   | Data analysis, web development, documentation, and team collaboration    |
 | Menwe Okafor     | @yourhandle   | Python development, AI model development, and data analysis              |
 
