@@ -37,7 +37,7 @@ Challenge Advisor: Neha Panchal · AI Studio Coach: Darshan Ugale
 ## October Milestone (Milestone 3: Machine Learning - Modeling) — Tasks
 
 | # | Task | Status | Evidence |
-|---|------|-------------|--------|----------|
+|---|------|--------|----------|
 | 1 | Prepare data and lock the feature set | Done | `notebooks/05_prepare_and_split.ipynb`, `reports/m3_leakage_register.csv`, `reports/m3_split_summary.csv` |
 | 2 | Build baseline and classification models | Done | `notebooks/06a_logistic_regression.ipynb`, `06b_random_forest.ipynb`, `06c_knn.ipynb`, `reports/m3_task7_*.csv` |
 | 3 | Compare model performance | Done | `notebooks/07_comparison.ipynb`, `reports/m3_task8_comparison.csv`, `reports/figures/m3_model_comparison.png` |
