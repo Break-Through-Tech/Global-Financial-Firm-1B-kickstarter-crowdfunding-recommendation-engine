@@ -1,0 +1,27 @@
+{
+  "model": "Logistic Regression (tuned)",
+  "task": "Binary classification \u2014 will a Kickstarter campaign reach its goal?",
+  "prediction_point": "Campaign launch (no during-campaign information used)",
+  "training_rows": 30702,
+  "test_rows": 7676,
+  "n_features": 137,
+  "majority_class_floor": 0.5473,
+  "accuracy": 0.716,
+  "precision": 0.7175,
+  "recall": 0.7936,
+  "f1": 0.7536,
+  "roc_auc": 0.777,
+  "excluded_for_leakage": [
+    "pledged",
+    "funded_percentage",
+    "backers",
+    "comments",
+    "updates"
+  ],
+  "known_limitations": [
+    "Trained on 2009-2012 data; not validated for present-day Kickstarter",
+    "US campaigns only",
+    "No campaign text, video, image or creator-history signal available",
+    "Chronological split accuracy differs from random by +0.3% on average across models"
+  ]
+}
