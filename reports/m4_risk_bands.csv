@@ -1,0 +1,4 @@
+band,predicted range,held-out campaigns,observed success
+High risk,0% to 35%,1804,19.7%
+Moderate risk,35% to 55%,1483,43.4%
+Favourable,55% to 100%,4389,72.9%

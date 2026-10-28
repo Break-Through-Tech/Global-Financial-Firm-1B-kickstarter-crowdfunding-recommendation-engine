@@ -1,0 +1,5 @@
+September statement,what the data shows,verdict
+The 30-day default outperforms,"30-day campaigns succeed 52.9% vs 55.5% for all others, and clearly less than 26-29 day campaigns within every goal quartile",WRONG
+A low entry price helps,"Raw gap for a >$25 entry is -23.1 points, but -2.4 once goal size and tier count are held fixed. High-entry campaigns offer a median of 3 tiers vs 8",OVERSTATED - it is a tier-count effect
+Creators can simply add a $5 tier,"Adding a $10 tier to campaigns with a >$25 entry moves the prediction by only +0.1 points; what helps is the number of tiers, not how cheap the cheapest one is",NOT SUPPORTED as stated
+Location is a modest signal (a few points between best and worst states; city density weak),"Across 32 states with 150+ campaigns success runs from 37% (FL) to 65% (NY), a 27-point spread that is 28 points after removing goal size. By city size the smallest quartile succeeds 43% against 62% for the largest. A rank correlation of 0.14 made it look weak; the rates show it is not",WRONG

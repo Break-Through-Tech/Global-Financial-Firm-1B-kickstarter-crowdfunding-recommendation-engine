@@ -1,0 +1,86 @@
+{
+  "checks_passed": 15,
+  "checks_total": 16,
+  "checks": [
+    {
+      "check": "No post-launch column among the model's features",
+      "passed": true,
+      "detail": "137 features inspected; offending: none"
+    },
+    {
+      "check": "No post-launch field among the prototype's inputs",
+      "passed": true,
+      "detail": "inputs are ['goal', 'duration', 'levels', 'reward_levels', 'category', 'subcategory', 'state_raw', 'city', 'launch_date', 'name']; overlap: none"
+    },
+    {
+      "check": "Every post-launch field is refused",
+      "passed": true,
+      "detail": "7 of 7 refused: ['backers', 'comments', 'funded_percentage', 'pledged', 'status', 'success', 'updates']"
+    },
+    {
+      "check": "Timing features come from the launch date, not the end date",
+      "passed": true,
+      "detail": "launch_date = end_date - duration holds exactly (max deviation 0 days 00:00:00)"
+    },
+    {
+      "check": "What-if engine rebuilds the training matrix exactly",
+      "passed": true,
+      "detail": "2000 rows re-featurised from raw inputs; max difference 0.0"
+    },
+    {
+      "check": "Reproduces the Milestone 3 model (random split)",
+      "passed": true,
+      "detail": "differences from Milestone 3: accuracy 0.0000, f1 0.0000, roc_auc 0.0000"
+    },
+    {
+      "check": "Holds up on later campaigns (chronological split)",
+      "passed": true,
+      "detail": "accuracy 0.719 random vs 0.720 chronological (gap 0.1 pts); chronological floor is 0.535"
+    },
+    {
+      "check": "Calibrated within 5 points per decile (random split)",
+      "passed": true,
+      "detail": "largest gap 3.4 pts"
+    },
+    {
+      "check": "Calibrated within 5 points per decile (chronological split)",
+      "passed": false,
+      "detail": "largest gap 6.5 pts"
+    },
+    {
+      "check": "Risk bands are ordered by observed success",
+      "passed": true,
+      "detail": "observed success by band: High risk 19.7%, Moderate risk 43.4%, Favourable 72.9%"
+    },
+    {
+      "check": "Calibrated within 5 points in every city-size group",
+      "passed": true,
+      "detail": "largest group gap 4.4 pts across 4 groups of 100+ campaigns"
+    },
+    {
+      "check": "Every lever raises the prediction for 99%+ of eligible campaigns",
+      "passed": true,
+      "detail": "lowest share raised across 10 candidate changes: 99.8%"
+    },
+    {
+      "check": "Pattern stable across periods: tiers rise in every quartile",
+      "passed": true,
+      "detail": "earlier: True, later: True"
+    },
+    {
+      "check": "Pattern stable across periods: 30-day is a dip in every quartile",
+      "passed": true,
+      "detail": "earlier: True, later: True"
+    },
+    {
+      "check": "Pattern stable across periods: >45 days worst in every quartile",
+      "passed": true,
+      "detail": "earlier: True, later: True"
+    },
+    {
+      "check": "No plan lowers a campaign's predicted chance",
+      "passed": true,
+      "detail": "smallest gain among the 249 campaigns that received a plan: +2.0 pts (1 got none)"
+    }
+  ]
+}

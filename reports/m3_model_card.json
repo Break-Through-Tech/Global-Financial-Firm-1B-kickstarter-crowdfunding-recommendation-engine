@@ -1,16 +1,34 @@
 {
-  "model": "Logistic Regression (tuned)",
+  "model": "Random Forest (tuned + calibrated)",
+  "algorithm": "RandomForestClassifier wrapped in CalibratedClassifierCV(method='sigmoid', cv=3)",
+  "hyperparameters": {
+    "n_estimators": 300,
+    "min_samples_leaf": 5,
+    "max_features": "sqrt",
+    "max_depth": null
+  },
   "task": "Binary classification \u2014 will a Kickstarter campaign reach its goal?",
   "prediction_point": "Campaign launch (no during-campaign information used)",
   "training_rows": 30702,
   "test_rows": 7676,
   "n_features": 137,
   "majority_class_floor": 0.5473,
-  "accuracy": 0.716,
-  "precision": 0.7175,
-  "recall": 0.7936,
-  "f1": 0.7536,
-  "roc_auc": 0.777,
+  "accuracy": 0.7187,
+  "precision": 0.7121,
+  "recall": 0.816,
+  "f1": 0.7605,
+  "roc_auc": 0.78,
+  "chronological_accuracy": 0.7199,
+  "chronological_roc_auc": 0.7896,
+  "largest_calibration_gap_pts": 3.4,
+  "mid_campaign_accuracy_with_updates": 0.818,
+  "top_features": [
+    "Number of reward tiers",
+    "Goal per reward tier",
+    "Creator's city size (campaign density)",
+    "Category",
+    "Cheapest reward as % of goal"
+  ],
   "excluded_for_leakage": [
     "pledged",
     "funded_percentage",
@@ -18,10 +36,11 @@
     "comments",
     "updates"
   ],
+  "advisor_model_for_what_if": "Logistic Regression (tuned) \u2014 see src/recommend.py",
   "known_limitations": [
     "Trained on 2009-2012 data; not validated for present-day Kickstarter",
     "US campaigns only",
     "No campaign text, video, image or creator-history signal available",
-    "Chronological split accuracy differs from random by +0.3% on average across models"
+    "Leans on goal size slightly too hard at the extremes (see error breakdown)"
   ]
 }
