@@ -1,0 +1,13 @@
+case,result,chance,band,advised,plan gain (pts),notes
+duration 30.3 (inside the default window),ok,0.067,High risk,"goal, reward tiers",12.9132,3
+duration exactly 1 day,ok,0.0858,High risk,"goal, reward tiers",13.2033,3
+duration exactly 60 days,ok,0.0663,High risk,"goal, duration, reward tiers",19.1946,2
+single reward tier,ok,0.0601,High risk,"goal, reward tiers",26.951,2
+25 reward tiers,ok,0.3955,Moderate risk,"goal, duration",8.074,2
+duplicate tier prices,ok,0.0649,High risk,"goal, duration, reward tiers",13.4848,2
+tiny goal ($50) in a larger subcategory,ok,0.6338,Favourable,"duration, reward tiers",15.1651,1
+"huge goal ($5,000,000)",ok,0.0634,High risk,none,0.0,1
+goal below the subcategory floor,ok,0.8411,Favourable,none,0.0,2
+all optional fields supplied,ok,0.0799,High risk,"goal, duration, reward tiers",18.068,2
+state is DC,ok,0.0668,High risk,"goal, duration, reward tiers",17.8789,2
+launch date far outside training years,ok,0.0663,High risk,"goal, duration, reward tiers",19.1946,2

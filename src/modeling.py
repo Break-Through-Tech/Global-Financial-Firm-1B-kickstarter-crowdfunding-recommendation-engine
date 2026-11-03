@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
@@ -97,6 +98,35 @@ def make_models(random_state: int = RANDOM_STATE) -> dict:
             ("clf", KNeighborsClassifier(n_neighbors=25, n_jobs=-1)),
         ]),
     }
+
+
+# ---------------------------------------------------------------------------
+# The final model (Milestone 3, Task 10 -- see notebooks/09_final_model.ipynb)
+# ---------------------------------------------------------------------------
+
+FINAL_MODEL_NAME = "Random Forest (tuned + calibrated)"
+
+# Settings chosen by the randomized search in notebook 08
+# (reports/m3_tuned_config.json). Kept here so every notebook builds the
+# identical model instead of re-typing the numbers.
+FINAL_RF_PARAMS = dict(n_estimators=300, min_samples_leaf=5, max_features="sqrt",
+                       max_depth=None)
+
+
+def make_final_model(random_state: int = RANDOM_STATE):
+    """The final model: the tuned Random Forest with Platt (sigmoid) calibration.
+
+    Why calibrate? A Random Forest's raw probabilities are squeezed towards the
+    middle (it averages votes, so it rarely says 5% or 95%). Notebook 09 showed
+    the lowest decile predicted 15% against 11% observed and the highest 83%
+    against 87%. The recommendation prototype shows the probability to a person,
+    so it has to mean what it says. `CalibratedClassifierCV` fits the forest on
+    two-thirds of the training data and a one-parameter sigmoid on the remaining
+    third, three times over, and averages. The ranking of campaigns (ROC-AUC) is
+    essentially unchanged; the numbers become honest.
+    """
+    forest = RandomForestClassifier(random_state=random_state, n_jobs=-1, **FINAL_RF_PARAMS)
+    return CalibratedClassifierCV(forest, method="sigmoid", cv=3)
 
 
 def align_columns(X_train: pd.DataFrame, X_test: pd.DataFrame) -> pd.DataFrame:

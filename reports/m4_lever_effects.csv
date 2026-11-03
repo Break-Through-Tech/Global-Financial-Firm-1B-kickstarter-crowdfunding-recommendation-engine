@@ -1,0 +1,11 @@
+lever,change,campaigns,mean gain (pts),median gain (pts),share raised,share clearing MIN_GAIN
+goal,goal x 0.9,7676,1.248,1.2298,0.9991,0.0758
+goal,goal x 0.75,7676,3.5374,3.616,0.9991,0.8696
+goal,goal x 0.6,7676,6.1882,6.3231,0.9988,0.9596
+goal,goal x 0.5,7676,8.2666,8.4804,0.9987,0.9788
+duration,shorten to 45 days,1247,3.6155,3.7709,1.0,0.7001
+duration,shorten to 35 days,2505,4.2719,3.4494,1.0,0.7078
+duration,shorten to 28 days,3287,4.7907,3.9786,1.0,0.7168
+reward tiers,6 tiers,1211,16.5324,11.9305,0.9983,0.9934
+reward tiers,8 tiers,2500,14.9972,12.2138,1.0,0.9964
+reward tiers,10 tiers,2500,15.3088,11.941,1.0,0.9936

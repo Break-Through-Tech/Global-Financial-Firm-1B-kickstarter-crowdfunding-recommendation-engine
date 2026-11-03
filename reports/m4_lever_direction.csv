@@ -1,0 +1,11 @@
+lever,change,campaigns,share raised
+goal,x 0.9,7676,0.9991
+goal,x 0.75,7676,0.9991
+goal,x 0.6,7676,0.9988
+goal,x 0.5,7676,0.9987
+duration,to 45 days,1247,1.0
+duration,to 35 days,2505,1.0
+duration,to 28 days,3287,1.0
+reward tiers,to 6 tiers,1211,0.9983
+reward tiers,to 8 tiers,2000,1.0
+reward tiers,to 10 tiers,2000,1.0
