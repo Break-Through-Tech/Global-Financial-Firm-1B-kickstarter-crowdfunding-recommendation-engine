@@ -1,16 +1,18 @@
+# Direct dependencies only: every package below is imported by src/ or the
+# notebooks, or is needed to run the notebooks.
+
 # Core data stack
 pandas>=2.2
 numpy>=1.26
-pyarrow>=15.0          # parquet engine for the intermediate tables
-scipy>=1.11            # rank correlations in notebooks 04 and 10
+scipy>=1.11            # rank correlation in notebooks/03 (Task 11)
 
 # Modelling (Random Forest, Logistic Regression, KNN, calibration)
 scikit-learn>=1.4
 
 # Visualisation
 matplotlib>=3.8
-seaborn>=0.13
 
 # Notebook environment
 jupyterlab>=4.0
 ipykernel>=6.29
+nbconvert>=7.0         # runs the notebooks from the command line (see README)

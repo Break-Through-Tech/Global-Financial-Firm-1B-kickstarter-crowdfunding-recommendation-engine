@@ -1,6 +1,5 @@
-# Derived data — regenerate by running notebooks 02 and 03.
-# The raw dataset zip IS committed (4.4 MB) so the pipeline is reproducible
-# from a fresh clone without a Kaggle login.
+# Nothing derived is written to data/: the notebooks rebuild every table from
+# the committed raw zip in memory. These patterns stop accidental copies.
 data/*.parquet
 data/*.csv
 !data/.gitkeep
