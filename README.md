@@ -162,8 +162,7 @@ Re-tested in November (notebook 03, §11.6; `reports/m4_sept_claims_rechecked.cs
 Tested with Python 3.12; older versions are not verified.
 
 ```bash
-git clone https://github.com/Break-Through-Tech/State-Street-1B-kickstarter-crowdfunding-recommendation-engine.git
-cd State-Street-1B-kickstarter-crowdfunding-recommendation-engine
+git clone https://github.com/Break-Through-Tech/Global-Financial-Firm-1B-kickstarter-crowdfunding-recommendation-engine.git
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
@@ -412,9 +411,7 @@ is shown (`reports/m4_validation_summary.json`).
 
 ## License
 
-TODO: the previous README stated the MIT License, but the repository has no
-`LICENSE` file. Add one (or confirm the license with the program) before
-relying on this.
+TODO: Need to fill this out
 
 ## References
 
