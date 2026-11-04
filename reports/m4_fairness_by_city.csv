@@ -1,5 +1,5 @@
 city group,campaigns,median city campaigns,observed success,mean predicted,gap (pts),AUC,scored High risk,success among High risk
-city unseen in training,453,0.0,0.3775,0.4214,-4.3925,0.815,0.3996,0.1215
-small cities,2408,12.0,0.4934,0.5017,-0.8365,0.7697,0.2907,0.1929
-mid-size cities,2407,258.0,0.5542,0.5606,-0.6401,0.7719,0.2264,0.1982
-large hubs,2408,2757.0,0.6262,0.6113,1.4943,0.7717,0.157,0.2407
+city unseen in training,453,0.0,0.3775,0.4171,-3.9625,0.9025,0.5188,0.0894
+small cities,2408,12.0,0.4934,0.4953,-0.1992,0.8944,0.4149,0.1401
+mid-size cities,2407,258.0,0.5542,0.5606,-0.6414,0.9021,0.3386,0.1178
+large hubs,2408,2757.0,0.6262,0.6153,1.0984,0.8865,0.2737,0.1608

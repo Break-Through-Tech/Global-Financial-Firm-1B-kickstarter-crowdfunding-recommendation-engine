@@ -1,13 +1,13 @@
 ,value
 campaigns replayed,250
-received at least one recommendation,100%
-mean plan gain (pts),15.2
-median plan gain (pts),13.6
+received at least one recommendation,97%
+mean plan gain (pts),8.2
+median plan gain (pts),7.3
 smallest plan gain (pts),0.0
-plans that reach a better risk band,59%
-plans that reach 50% or more,42%
-plans that cut the goal,95%
+plans that reach a better risk band,26%
+plans that reach 50% or more,18%
+plans that cut the goal,86%
 median goal cut among those,25%
-plans where goal x probability FALLS,32%
-RF re-scoring the plan directly: median gain (pts),14.7
-RF re-scoring the plan directly: share that also rise,100%
+plans where goal x probability FALLS,19%
+RF re-scoring the plan directly: median gain (pts),5.5
+RF re-scoring the plan directly: share that also rise,90%

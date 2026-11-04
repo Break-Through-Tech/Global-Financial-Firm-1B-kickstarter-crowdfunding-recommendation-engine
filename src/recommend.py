@@ -1,11 +1,10 @@
 """
-Milestone 4 -- turning predictions into advice.
+Milestone 4 -- turning predictions into advice (Tasks 11-15).
 
 TWO MODELS, TWO JOBS
     * The SCORER is the final model: a tuned, calibrated Random Forest on the
-      launch-time feature set (best accuracy, F1 and ROC-AUC of the three
-      models built in Milestone 3). It answers "what is my chance?" and puts
-      the campaign in a risk band.
+      `with_updates` feature set (chosen in Milestone 3, Task 10). It answers
+      "what is my chance?" and puts the campaign in a risk band.
     * The ADVISOR is the Logistic Regression from Milestone 3. It answers
       "how much would this change help?". A what-if engine needs a model whose
       response to a change is smooth and always points the same way; a forest
@@ -30,13 +29,22 @@ Three further design decisions worth knowing about:
    every what-if keeps them consistent; nudging one column by hand does not.
    A test (`self_check`) proves the rebuild reproduces the training matrix.
 
-2. ONLY LAUNCH-TIME INFORMATION CAN ENTER. `updates`, `pledged`, `backers`,
-   `comments` and `funded_percentage` have no input slot. The prototype is
-   incapable of using them, which is stronger than promising not to.
+2. OUTCOMES CAN NEVER ENTER. `pledged`, `backers`, `comments`,
+   `funded_percentage` and `status` have no input slot, and passing one
+   raises an error. The prototype is incapable of using them, which is
+   stronger than promising not to.
 
-3. ADVICE IS LIMITED TO WHAT A CREATOR CAN CHANGE: goal, duration and reward
-   structure. Category, subcategory, state and city inform the prediction but
-   are never recommended, because nobody can change them before launching.
+3. `updates` IS AN INPUT, NOT A LEVER. The final model was trained on the
+   number of updates each campaign posted by the time it ended. Before launch
+   that number does not exist yet, so the creator supplies the number they
+   PLAN to post. It is never recommended as a change: update counts partly
+   reflect how well a campaign was already doing (a campaign funding well gets
+   a creator who keeps posting), so "post more updates" may do nothing. The
+   report shows how much the score leans on the planned figure.
+
+4. ADVICE IS LIMITED TO WHAT A CREATOR CAN CHANGE before launch: goal,
+   duration and reward structure. Category, subcategory, state and city inform
+   the prediction but are never recommended.
 """
 
 from __future__ import annotations
@@ -48,6 +56,8 @@ import numpy as np
 import pandas as pd
 
 from src.features import (
+    EXTRA_NUMERIC,
+    FINAL_FEATURE_SET,
     add_duration_features,
     add_goal_features,
     add_location_frequency,
@@ -55,27 +65,42 @@ from src.features import (
     add_reward_features,
     add_timing_features,
     add_title_features,
+    align_columns,
     build_model_matrix,
     parse_reward_levels,
 )
-from src.modeling import FINAL_MODEL_NAME, align_columns, make_final_model, make_models
+from src.modeling import FINAL_MODEL_NAME, make_final_model, make_models
 
-EXTRA = ["log_city_project_count", "log_goal_vs_subcat_median"]
+EXTRA = EXTRA_NUMERIC
 
 # Raw columns a campaign description must supply. Everything else is derived.
 RAW_COLUMNS = [
     "goal", "duration", "levels", "reward_levels", "category", "subcategory",
-    "state_raw", "city", "launch_date", "name",
+    "state_raw", "city", "launch_date", "name", "updates",
 ]
 
 TITLE_COLUMNS = ["name_length", "name_word_count", "name_has_exclaim",
                  "name_has_digit", "name_upper_ratio"]
 
-# Fields that only exist once a campaign is running or finished. Passing any of
-# them is an error, not something to ignore silently: a creator who types in
-# their update count should be told why it cannot be used.
-NOT_AT_LAUNCH = {"updates", "pledged", "backers", "comments", "funded_percentage",
-                 "status", "success"}
+# Outcome fields: they only exist once a campaign has finished, and most are
+# the result itself. Passing any of them is an error, not something to ignore
+# silently. (`updates` is deliberately NOT here: it is a required input, the
+# creator's planned number of updates.)
+OUTCOME_FIELDS = {"pledged", "backers", "comments", "funded_percentage",
+                  "status", "success"}
+
+# Features describing how a goal is written rather than how big it is. They are
+# held at the campaign's own value in every what-if, so that rounding a
+# suggested goal (e.g. $5,000 x 0.9 = $4,500) cannot by itself change the
+# estimated effect. Found in Task 15: without this, a 10% goal cut lowered the
+# advisor's estimate for about 9% of held-out campaigns, almost all of them
+# campaigns whose round $1,000 goal stopped being round.
+HELD_FIXED_IN_WHAT_IFS = ["goal_is_round_1k"]
+
+# The scorer's chance is shown between these limits. Isotonic calibration
+# outputs exactly 0 or 1 at the extremes, and no campaign in this data is
+# certain to fail or to succeed (Task 14: a campaign scored 100% failed).
+SHOWN_MIN, SHOWN_MAX = 0.01, 0.99
 
 # Kickstarter has capped campaigns at 60 days since June 2011.
 MIN_DURATION, MAX_DURATION = 1, 60
@@ -92,12 +117,26 @@ def tiers_to_string(tiers) -> str:
     followed by exactly three digits as a thousands mark, so "$1000" would be
     read as "$100" followed by a stray zero. Formatting with separators keeps
     the round trip lossless (checked in `self_check`).
+
+    Args:
+        tiers: Tier amounts, in any order.
+
+    Returns:
+        The amounts sorted and joined, e.g. "$5,$25,$1,000".
     """
     return ",".join(f"${t:,.0f}" if float(t).is_integer() else f"${t:,.2f}"
                     for t in sorted(tiers))
 
 
 def string_to_tiers(s) -> list[float]:
+    """Parse a "$5,$25,$1,000" string back into tier amounts.
+
+    Args:
+        s: A reward_levels string.
+
+    Returns:
+        The amounts as floats.
+    """
     return parse_reward_levels(s)
 
 
@@ -139,13 +178,31 @@ NICE_AMOUNTS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150, 2
 
 
 def ordinal(n: int) -> str:
-    """91 -> '91st', 12 -> '12th', 23 -> '23rd'."""
+    """Format an integer as an English ordinal.
+
+    Args:
+        n: The number.
+
+    Returns:
+        For example '91st', '12th', '23rd'.
+    """
     suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
 
 
 def _snap(x: float, lo: float, hi: float, used: set):
-    """Nearest 'nice' amount strictly between lo and hi that is not yet used."""
+    """Find the believable price nearest ``x`` (in log terms) inside a gap.
+
+    Args:
+        x: Target price.
+        lo: Lower bound, exclusive.
+        hi: Upper bound, exclusive.
+        used: Amounts already taken.
+
+    Returns:
+        A value from ``NICE_AMOUNTS`` strictly between ``lo`` and ``hi`` and
+        not in ``used``, or None if there is none.
+    """
     cands = [a for a in NICE_AMOUNTS if lo < a < hi and a not in used]
     if cands:
         return float(min(cands, key=lambda a: abs(math.log(a) - math.log(x))))
@@ -159,6 +216,17 @@ def suggest_tiers(tiers, n: int) -> list[float]:
     remaining gap (measured in log-price, since $5 to $10 is as big a jump as
     $500 to $1,000) and is snapped to a believable amount. If the gaps are
     exhausted, higher-priced tiers are added instead.
+
+    Args:
+        tiers: Current tier amounts.
+        n: Target number of tiers.
+
+    Returns:
+        The sorted, de-duplicated tier list, grown towards ``n``. It can be
+        shorter than ``n`` if no believable amount is left.
+
+    Raises:
+        ValueError: If ``tiers`` has no positive amount.
     """
     t = sorted({float(x) for x in tiers if float(x) > 0})
     if not t:
@@ -191,10 +259,26 @@ def suggest_tiers(tiers, n: int) -> list[float]:
 # ---------------------------------------------------------------------------
 
 class Recommender:
-    """Final-model wrapper: featurise, predict, explain, advise."""
+    """Final-model wrapper: featurise, predict, explain, advise.
+
+    Build it with ``Recommender.fit`` or ``get_recommender`` rather than
+    calling the constructor directly.
+    """
 
     def __init__(self, model, advisor, columns, medians, city_ref, goal_ref,
                  train: pd.DataFrame, X_train: pd.DataFrame):
+        """Store the fitted models and the training references.
+
+        Args:
+            model: Fitted scorer (the final model).
+            advisor: Fitted Logistic Regression used for what-if effects.
+            columns: Training matrix columns.
+            medians: Training matrix column medians, used for missing inputs.
+            city_ref: Campaign counts per "city, state" from training.
+            goal_ref: Median goal per subcategory from training.
+            train: The featured training rows.
+            X_train: The training matrix.
+        """
         self.model = model            # scorer: the final Random Forest
         self.advisor = advisor        # what-if effects: Logistic Regression
         self.model_name = FINAL_MODEL_NAME
@@ -225,8 +309,15 @@ class Recommender:
         If `test` is given, the observed success rate of held-out campaigns in
         each risk band is recorded, so every probability shown to a creator can
         be accompanied by what actually happened to campaigns scored like it.
+
+        Args:
+            train: Training half from ``src.data.load_splits``.
+            test: Optional test half for measuring the risk bands.
+
+        Returns:
+            A fitted ``Recommender``.
         """
-        X_train, y_train = build_model_matrix(train, "launch_only", extra_numeric=EXTRA)
+        X_train, y_train = build_model_matrix(train, FINAL_FEATURE_SET, extra_numeric=EXTRA)
         model = make_final_model()
         model.fit(X_train, y_train)
         advisor = make_models()["Logistic Regression"]
@@ -248,7 +339,13 @@ class Recommender:
 
         Missing optional inputs fall back to training medians rather than to
         zero, so leaving out a city or a title does not silently penalise the
-        campaign.
+        campaign. Launch year is clipped to the training years.
+
+        Args:
+            raw: Rows with every column in ``RAW_COLUMNS``.
+
+        Returns:
+            A float64 matrix with the training columns, in the training order.
         """
         df = raw[RAW_COLUMNS].copy()
         df["launch_date"] = pd.to_datetime(df["launch_date"], utc=True)
@@ -261,7 +358,7 @@ class Recommender:
         df, _ = add_location_frequency(df, reference=self.city_ref)
         df, _ = add_relative_goal(df, reference=self.goal_ref)
 
-        X, _ = build_model_matrix(df.assign(success=0), "launch_only", extra_numeric=EXTRA)
+        X, _ = build_model_matrix(df.assign(success=0), FINAL_FEATURE_SET, extra_numeric=EXTRA)
         X = align_columns(self.X_train, X)
 
         # Optional inputs: use the training median instead of a made-up value.
@@ -280,12 +377,44 @@ class Recommender:
         return X.fillna(self.medians).astype("float64")
 
     def predict_proba(self, raw: pd.DataFrame) -> np.ndarray:
-        """Chance of success from the final model (the scorer)."""
-        return self.model.predict_proba(self.featurize(raw))[:, 1]
+        """Score raw campaign rows with the final model (the scorer).
+
+        Args:
+            raw: Rows with every column in ``RAW_COLUMNS``.
+
+        Returns:
+            Probability of success for each row, kept between ``SHOWN_MIN``
+            and ``SHOWN_MAX`` (1% and 99%).
+        """
+        p = self.model.predict_proba(self.featurize(raw))[:, 1]
+        return np.clip(p, SHOWN_MIN, SHOWN_MAX)
 
     def advisor_proba(self, raw: pd.DataFrame) -> np.ndarray:
-        """Chance of success from the advisor (Logistic Regression)."""
+        """Score raw campaign rows with the advisor (Logistic Regression).
+
+        Args:
+            raw: Rows with every column in ``RAW_COLUMNS``.
+
+        Returns:
+            The advisor's probability of success for each row.
+        """
         return self.advisor.predict_proba(self.featurize(raw))[:, 1]
+
+    def advisor_shift(self, before: pd.DataFrame, after: pd.DataFrame) -> np.ndarray:
+        """The advisor's change in probability from ``before`` to ``after``.
+
+        Features in ``HELD_FIXED_IN_WHAT_IFS`` keep their ``before`` values.
+
+        Args:
+            before: Raw rows as they are.
+            after: The same rows with one or more levers changed.
+
+        Returns:
+            ``advisor(after) - advisor(before)`` for each row.
+        """
+        Xb, Xa = self.featurize(before), self.featurize(after)
+        Xa[HELD_FIXED_IN_WHAT_IFS] = Xb[HELD_FIXED_IN_WHAT_IFS].to_numpy()
+        return self.advisor.predict_proba(Xa)[:, 1] - self.advisor.predict_proba(Xb)[:, 1]
 
     # Shown chances are kept inside this range after a what-if shift.
     P_FLOOR, P_CEIL = 0.005, 0.995
@@ -300,10 +429,19 @@ class Recommender:
         `before`.
         Pass `base` (the scorer's probabilities for `before`) to skip
         re-scoring it.
+
+        Args:
+            before: Raw rows as they are.
+            after: The same rows with one or more levers changed.
+            base: Optional scorer probabilities for ``before``.
+
+        Returns:
+            ``base + advisor_shift(before, after)``, clipped to
+            ``[P_FLOOR, P_CEIL]``.
         """
         if base is None:
             base = self.predict_proba(before)
-        shift = self.advisor_proba(after) - self.advisor_proba(before)
+        shift = self.advisor_shift(before, after)
         return np.clip(np.asarray(base, dtype=float) + shift, self.P_FLOOR, self.P_CEIL)
 
 
@@ -317,6 +455,17 @@ class Recommender:
         lever="duration"      value = new duration in days
         lever="reward tiers"  value = target number of tiers
         Uses the same rounding and tier logic as the single-campaign engine.
+
+        Args:
+            raw: Rows with every column in ``RAW_COLUMNS``.
+            lever: "goal", "duration" or "reward tiers".
+            value: See above.
+
+        Returns:
+            A changed copy of ``raw``.
+
+        Raises:
+            ValueError: If the lever name is unknown.
         """
         r = raw.copy()
         if lever == "goal":
@@ -335,12 +484,28 @@ class Recommender:
 
     @staticmethod
     def band_of(p: float) -> str:
+        """Name the risk band for a probability.
+
+        Args:
+            p: Predicted probability of success.
+
+        Returns:
+            "High risk", "Moderate risk" or "Favourable" (see ``BANDS``).
+        """
         for upper, name in BANDS:
             if p < upper:
                 return name
         return BANDS[-1][1]
 
     def _measure_bands(self, test: pd.DataFrame) -> dict:
+        """Observed success per risk band on held-out rows; stores the scores.
+
+        Args:
+            test: Held-out rows with ``RAW_COLUMNS`` and ``success``.
+
+        Returns:
+            ``{band: {"observed_rate", "n", "range"}}`` for each non-empty band.
+        """
         p = self.predict_proba(test[RAW_COLUMNS])
         y = test["success"].to_numpy()
         self.holdout_p, self.holdout_y = p, y
@@ -358,6 +523,15 @@ class Recommender:
 
         More honest than a band average: a campaign scored 88% should be
         compared with campaigns scored near 88%, not with everything above 55%.
+
+        Args:
+            p: The probability to look around.
+            half_width: Half the width of the window.
+            min_n: Fewest held-out campaigns needed to report a rate.
+
+        Returns:
+            ``{"low", "high", "rate", "n"}``, or None if the bands were never
+            measured or the window holds fewer than ``min_n`` campaigns.
         """
         if self.holdout_p is None:
             return None
@@ -369,6 +543,7 @@ class Recommender:
                 "n": int(m.sum())}
 
     def _entry_price_stats(self) -> dict:
+        """Training success rates and tier counts split at a $25 entry price."""
         tiers = self.train["reward_levels"].map(string_to_tiers)
         mn = tiers.map(min)
         hi = mn > 25
@@ -379,7 +554,20 @@ class Recommender:
                 "median_tiers_other": float(self.train.loc[~hi, "levels"].median())}
 
     def standing(self, c: dict) -> dict:
-        """Where this campaign sits among comparable training campaigns."""
+        """Place a campaign among comparable training campaigns.
+
+        Uses the subcategory, or the category if the subcategory has fewer
+        than 100 training campaigns.
+
+        Args:
+            c: A validated campaign dict.
+
+        Returns:
+            The comparison group, its size, the goal's percentile, the median
+            goal, the success rate of campaigns with half to double the goal,
+            what successful campaigns there typically did, and the goal floor
+            used by the goal lever.
+        """
         sub = self.train[self.train["subcategory"] == c["subcategory"]]
         scope = c["subcategory"]
         if len(sub) < 100:
@@ -395,27 +583,45 @@ class Recommender:
             "similar_success_rate": float(similar["success"].mean()) if len(similar) else float("nan"),
             "winners_median_duration": float(won["duration_days"].median()),
             "winners_median_tiers": float(won["levels"].median()),
+            "winners_median_updates": float(won["updates"].median()),
             "goal_floor": float(sub["goal"].quantile(GOAL_FLOOR_QUANTILE)),
         }
 
     # -- input handling -----------------------------------------------------
 
     def validate(self, campaign: dict) -> dict:
-        """Check a campaign description and normalise it. Raises ValueError."""
+        """Check a campaign description and normalise it.
+
+        Args:
+            campaign: Required keys: goal, duration (1-60), reward_tiers (list
+                of positive amounts), category, subcategory, state (two-letter
+                code) and updates (planned number, 0 or more). Optional: city,
+                name, launch_date.
+
+        Returns:
+            A normalised copy: numbers as floats, tiers sorted, state upper-case.
+
+        Raises:
+            ValueError: If an outcome field is present, a required field is
+                missing, or any value is out of range or unknown.
+        """
         c = dict(campaign)
-        leaked = sorted(NOT_AT_LAUNCH & set(c))
+        leaked = sorted(OUTCOME_FIELDS & set(c))
         if leaked:
             raise ValueError(
-                f"{leaked} cannot be used: they are only known after a campaign "
-                f"launches. This tool predicts from launch-time information only.")
+                f"{leaked} cannot be used: they are outcomes, only known after a "
+                f"campaign ends. Describe the campaign as planned instead.")
         missing = [k for k in ("goal", "duration", "reward_tiers", "category",
-                               "subcategory", "state") if c.get(k) in (None, [])]
+                               "subcategory", "state", "updates") if c.get(k) in (None, [])]
         if missing:
             raise ValueError(f"Missing required fields: {missing}")
         c["goal"] = float(c["goal"])
         c["duration"] = float(c["duration"])
+        c["updates"] = float(c["updates"])
         if not c["goal"] > 0:
             raise ValueError("goal must be positive")
+        if c["updates"] < 0:
+            raise ValueError("updates (the number you plan to post) cannot be negative")
         if not MIN_DURATION <= c["duration"] <= MAX_DURATION:
             raise ValueError(f"duration must be between {MIN_DURATION} and "
                              f"{MAX_DURATION} days (Kickstarter's current maximum)")
@@ -436,7 +642,15 @@ class Recommender:
         return c
 
     def to_raw(self, cases: list[dict]) -> pd.DataFrame:
-        """Validated campaign dicts -> raw rows the feature pipeline understands."""
+        """Turn validated campaign dicts into raw rows for the feature pipeline.
+
+        Args:
+            cases: Campaign dicts already passed through ``validate``.
+
+        Returns:
+            One row per campaign with the columns in ``RAW_COLUMNS``. A
+            missing launch date becomes the latest training launch date.
+        """
         rows = []
         for c in cases:
             rows.append({
@@ -446,17 +660,33 @@ class Recommender:
                 "category": c["category"], "subcategory": c["subcategory"],
                 "state_raw": c["state"], "city": c.get("city"),
                 "launch_date": c.get("launch_date") or self.default_launch_date,
-                "name": c.get("name"),
+                "name": c.get("name"), "updates": c["updates"],
             })
         return pd.DataFrame(rows, columns=RAW_COLUMNS)
 
     def probability(self, campaign: dict) -> float:
+        """Chance of success for one campaign description, from the scorer.
+
+        Args:
+            campaign: A campaign dict (see ``validate``).
+
+        Returns:
+            The final model's probability of success.
+        """
         return float(self.predict_proba(self.to_raw([self.validate(campaign)]))[0])
 
     # -- the advice engine --------------------------------------------------
 
     def _candidates(self, c: dict, st: dict) -> list[dict]:
-        """Every what-if change to evaluate, mildest first within each lever."""
+        """List every what-if change to evaluate, mildest first within each lever.
+
+        Args:
+            c: A validated campaign dict.
+            st: Its ``standing`` (for the goal floor).
+
+        Returns:
+            Dicts with ``lever``, ``label`` and the changed ``campaign``.
+        """
         out, notes = [], []
 
         # GOAL -- lower is better, monotonically, for every campaign tested.
@@ -489,6 +719,16 @@ class Recommender:
         return out
 
     def assess(self, campaign: dict, min_gain: float = MIN_GAIN) -> "Assessment":
+        """Score a campaign, evaluate every candidate change and build a plan.
+
+        Args:
+            campaign: A campaign dict (see ``validate``).
+            min_gain: Smallest gain, as a probability, worth recommending.
+
+        Returns:
+            An ``Assessment`` holding the chance, band, standing, options,
+            combined plan and notes.
+        """
         c = self.validate(campaign)
         st = self.standing(c)
         cands = self._candidates(c, st)
@@ -498,7 +738,9 @@ class Recommender:
         raw_c = self.to_raw([c])
         base = float(self.predict_proba(raw_c)[0])
         cases = [c] + [x["campaign"] for x in cands]
-        adv = self.advisor_proba(self.to_raw(cases))
+        X_cases = self.featurize(self.to_raw(cases))
+        X_cases[HELD_FIXED_IN_WHAT_IFS] = X_cases[HELD_FIXED_IN_WHAT_IFS].iloc[[0] * len(X_cases)].to_numpy()
+        adv = self.advisor.predict_proba(X_cases)[:, 1]
         probs = np.concatenate([[base], np.clip(base + (adv[1:] - adv[0]),
                                                 self.P_FLOOR, self.P_CEIL)])
 
@@ -542,7 +784,32 @@ class Recommender:
 
     def _notes(self, c: dict, st: dict, options: pd.DataFrame,
                probability: float, advisor_probability: float | None = None) -> list[str]:
+        """Write the caveats shown under a report.
+
+        Args:
+            c: A validated campaign dict.
+            st: Its ``standing``.
+            options: The evaluated options table.
+            probability: The scorer's chance.
+            advisor_probability: The advisor's chance, if known.
+
+        Returns:
+            Plain-text notes, in display order.
+        """
         notes = []
+        if c["updates"] > 0:
+            p_none = self.probability({**c, "updates": 0})
+            notes.append(
+                f"Updates: this chance assumes you post {c['updates']:g} updates during the "
+                f"campaign. With none planned the model would say {p_none:.0%}. The model "
+                f"learned from the number of updates campaigns had posted by the end, which "
+                f"partly reflects how well they were already doing, so this is the figure "
+                f"the estimate leans on most and it is not advice to post more.")
+        else:
+            notes.append(
+                "Updates: you entered 0 planned updates. Campaigns that posted none rarely "
+                "succeeded, which weighs heavily on this chance; if you do plan to post "
+                "updates, enter the number.")
         d = c["duration"]
         if DEFAULT_DURATION[0] <= d <= DEFAULT_DURATION[1]:
             notes.append(
@@ -568,11 +835,11 @@ class Recommender:
                 f"tiers (median {es['median_tiers_over_25']:.0f} versus "
                 f"{es['median_tiers_other']:.0f}). With goal size and the number of tiers "
                 f"held fixed, that gap shrinks to a few points, and adding a $10 tier to yours changes "
-                f"the predicted chance by only {delta:+.1f} points. The number of tiers is the "
+                f"the predicted chance by {delta:+.1f} points. The number of tiers is the "
                 f"lever that matters here.")
         if (options["lever"].eq("reward tiers") & options["recommended"]).any():
             notes.append(
-                "Reward tiers: this is the strongest association in the data and also the "
+                "Reward tiers: this is the strongest association among the levers and also the "
                 "one most likely to be partly selection - creators who design many tiers "
                 "tend to have planned the whole campaign more carefully. Padding the list "
                 "with options nobody wants is unlikely to deliver the full predicted gain; "
@@ -601,10 +868,26 @@ class Recommender:
         return notes
 
     def report(self, campaign: dict) -> str:
+        """Plain-text assessment of one campaign.
+
+        Args:
+            campaign: A campaign dict (see ``validate``).
+
+        Returns:
+            The formatted report from ``Assessment.report``.
+        """
         return self.assess(campaign).report()
 
     def summary_frame(self, cases: dict) -> pd.DataFrame:
-        """One row per named campaign: chance, risk band, levers advised, plan outcome."""
+        """Assess several named campaigns side by side.
+
+        Args:
+            cases: ``{name: campaign dict}``.
+
+        Returns:
+            One row per campaign: chance, risk band, levers advised, plan
+            chance and plan gain in points.
+        """
         rows = []
         for name, c in cases.items():
             a = self.assess(c)
@@ -629,6 +912,14 @@ class Recommender:
         training matrix exactly. If it does not, the what-if engine would be
         answering a slightly different question from the one the model was
         trained on -- the failure that is hardest to notice from outputs alone.
+
+        Args:
+            n: Number of training rows to check.
+            seed: Sampling seed.
+
+        Returns:
+            ``{"rows_checked", "max_abs_difference", "matrix_reproduced",
+            "tier_round_trip_ok"}``.
         """
         sample = self.train.sample(min(n, len(self.train)), random_state=seed)
         rebuilt = self.featurize(sample)
@@ -652,6 +943,8 @@ class Recommender:
 
 @dataclass
 class Assessment:
+    """Everything the engine worked out for one campaign."""
+
     campaign: dict
     probability: float
     band: str
@@ -664,13 +957,19 @@ class Assessment:
     base_floor: float = 0.0
 
     def report(self) -> str:
+        """Format the assessment as the plain-text report a creator reads.
+
+        Returns:
+            The report: chance and band, standing, options, plan, notes and
+            how to read it.
+        """
         c, s = self.campaign, self.standing
         L = []
         tiers = tiers_to_string(c["reward_tiers"])
         L.append(f"CAMPAIGN ASSESSMENT")
         L.append(f"  {c['category']} / {c['subcategory']} - {c['state']} - goal "
                  f"${c['goal']:,.0f} - {c['duration']:g} days - {len(c['reward_tiers'])} "
-                 f"reward tiers ({tiers})")
+                 f"reward tiers ({tiers}) - {c['updates']:g} planned updates")
         L.append("")
         L.append(f"Predicted chance of reaching the goal: {self.probability:.0%}   "
                  f"[{self.band}]   (final model: {FINAL_MODEL_NAME})")
@@ -690,7 +989,8 @@ class Assessment:
             L.append(f"  Campaigns with a similar goal (half to double yours): "
                      f"{s['similar_success_rate']:.0%} succeeded (n={s['similar_n']:,}).")
         L.append(f"  Successful campaigns here typically ran {s['winners_median_duration']:.0f} "
-                 f"days with {s['winners_median_tiers']:.0f} reward tiers.")
+                 f"days with {s['winners_median_tiers']:.0f} reward tiers and posted "
+                 f"{s['winners_median_updates']:.0f} updates.")
         L.append("")
         L.append("What you could change (estimated effect on your chance)")
         if self.options.empty:
@@ -724,14 +1024,23 @@ class Assessment:
                  "also better prepared in ways the data cannot see. Treat predicted gains as an "
                  "upper estimate. City, title and launch date are used if supplied; otherwise typical "
                  "values are assumed, which can shift the chance by a few points (city most). "
+                 "The planned number of updates is used as given and never recommended. "
                  "The chance comes from the Random Forest; the effect of each change is estimated "
                  "by a Logistic Regression, which responds smoothly and consistently to a change.")
         return "\n".join(L)
 
 
 def get_recommender(root: str = "..") -> Recommender:
-    """Load the splits (building them if needed) and fit the scorer and advisor."""
-    from src.prepare import load_splits
+    """Build the prototype from the random split.
+
+    Args:
+        root: Repository root relative to the caller.
+
+    Returns:
+        A ``Recommender`` fitted on the training half, with risk-band rates
+        measured on the test half.
+    """
+    from src.data import load_splits
     train, test = load_splits(root)["random"]
     return Recommender.fit(train, test=test)
 
@@ -739,11 +1048,18 @@ def get_recommender(root: str = "..") -> Recommender:
 def campaign_from_row(row) -> dict:
     """Turn a row of the featured table into a campaign description.
 
-    Used to replay real held-out campaigns through the engine. Only launch-time
-    fields are copied across.
+    Used to replay real held-out campaigns through the engine. Outcome fields
+    are not copied; the campaign's actual final update count stands in for a
+    planned one.
+
+    Args:
+        row: One row of a split from ``src.data.load_splits``.
+
+    Returns:
+        A campaign dict accepted by ``Recommender.validate``.
     """
     return dict(goal=float(row["goal"]), duration=float(row["duration_days"]),
                 reward_tiers=string_to_tiers(row["reward_levels"]),
                 category=row["category"], subcategory=row["subcategory"],
                 state=row["state_raw"], city=row["city"], name=row["name"],
-                launch_date=row["launch_date"])
+                launch_date=row["launch_date"], updates=float(row["updates"]))
