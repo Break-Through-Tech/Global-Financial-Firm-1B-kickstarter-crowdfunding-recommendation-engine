@@ -1,4 +1,4 @@
-band,campaigns,observed_success,median_goal,median_duration,median_tiers,share_4_or_fewer_tiers,share_over_45_days,median_entry_price
-High risk,1804,0.1973,10000.0,40.0,6.0,0.2988,0.3908,5.0
-Moderate risk,1483,0.4343,5000.0,37.0,7.0,0.1713,0.3655,5.0
-Favourable,4389,0.7293,2500.0,30.04,8.0,0.0952,0.2087,5.0
+band,campaigns,observed_success,median_goal,median_duration,median_tiers,share_4_or_fewer_tiers,share_over_45_days,median_entry_price,median_updates,share_no_updates
+High risk,2708,0.134,6000.0,37.71,7.0,0.2297,0.3634,5.0,0.0,0.7419
+Moderate risk,855,0.4573,2400.0,30.16,7.0,0.2035,0.2561,5.0,1.0,0.4795
+Favourable,4113,0.8381,3000.0,30.96,8.0,0.1009,0.2334,5.0,5.0,0.0216

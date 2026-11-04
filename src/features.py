@@ -1,17 +1,22 @@
 """
-Feature preparation.
+Feature preparation (Milestone 1, Task 3; feature sets locked in Task 6).
 
-The organising idea in this module is the *prediction point*. The challenge
-brief asks for a model that uses "information available around campaign
-launch", so every feature built here is tagged as either:
+Every feature built here is tagged by when it becomes known:
 
-  LAUNCH  -- knowable the moment the campaign goes live
-  CAMPAIGN -- only knowable while the campaign is running
-  LEAKY   -- an outcome, or a direct function of one
+  LAUNCH   -- knowable the moment the campaign goes live
+  CAMPAIGN -- creator behaviour while the campaign runs (`updates`)
+  LEAKY    -- an outcome, or a direct function of one; never used
 
-Two feature sets are exported (LAUNCH_ONLY and PLUS_CAMPAIGN) so the
-modelling notebook can quantify what the CAMPAIGN features are worth
-instead of assuming.
+Two feature sets are exported:
+
+  launch_only   LAUNCH features only. The October baseline.
+  with_updates  LAUNCH features plus `updates`. The final feature set
+                (FINAL_FEATURE_SET), used by the final model and the
+                recommendation prototype.
+
+`updates` is the number of posts the creator made during the campaign, as
+counted when it ended. Before launch, the prototype takes the creator's
+*planned* number of updates in its place.
 """
 
 from __future__ import annotations
@@ -57,14 +62,30 @@ REWARD_PATTERN = re.compile(r"\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{
 
 
 def parse_reward_levels(raw: str) -> list[float]:
-    """Extract the numeric reward tiers from one reward_levels string."""
+    """Extract the numeric reward tiers from one reward_levels string.
+
+    Args:
+        raw: A string like "$25,$50,$1,000". Non-strings are treated as empty.
+
+    Returns:
+        The tier amounts as floats, in the order they appear.
+    """
     if not isinstance(raw, str):
         return []
     return [float(m.replace(",", "")) for m in REWARD_PATTERN.findall(raw)]
 
 
 def add_reward_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Turn the reward_levels string into tier statistics. All LAUNCH."""
+    """Turn the reward_levels string into tier statistics. All LAUNCH.
+
+    Args:
+        df: Table with ``reward_levels``, ``goal`` and ``levels``.
+
+    Returns:
+        A copy with tier count, min/max/median tier, spread, entry price as a
+        share of the goal, logged min/max tier and ``tier_count_mismatch``
+        (parsed count differs from the scraper's ``levels``).
+    """
     df = df.copy()
     parsed = df["reward_levels"].map(parse_reward_levels)
 
@@ -96,6 +117,13 @@ def add_goal_features(df: pd.DataFrame) -> pd.DataFrame:
 
     Goal is heavily right-skewed (median $4,000, max in the millions), so
     log1p is the version any linear model should see.
+
+    Args:
+        df: Table with ``goal`` and ``levels``.
+
+    Returns:
+        A copy with ``log_goal``, ``goal_per_tier``, ``log_goal_per_tier``
+        and ``goal_is_round_1k``.
     """
     df = df.copy()
     df["log_goal"] = np.log1p(df["goal"])
@@ -107,7 +135,15 @@ def add_goal_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_duration_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Duration transforms. All LAUNCH."""
+    """Duration transforms. All LAUNCH.
+
+    Args:
+        df: Table with ``duration`` and ``goal``.
+
+    Returns:
+        A copy with ``duration_days``, ``is_30_day`` (the platform default),
+        ``duration_bucket``, ``goal_per_day`` and ``log_goal_per_day``.
+    """
     df = df.copy()
     df["duration_days"] = df["duration"]
     # 30 days is Kickstarter's default and by far the modal choice; being on
@@ -124,7 +160,14 @@ def add_duration_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_timing_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Launch-timing features. All LAUNCH (they use launch_date, not end_date)."""
+    """Launch-timing features. All LAUNCH (they use launch_date, not end_date).
+
+    Args:
+        df: Table with a datetime ``launch_date``.
+
+    Returns:
+        A copy with launch year, month, weekday, quarter and a weekend flag.
+    """
     df = df.copy()
     ld = df["launch_date"]
     df["launch_year"] = ld.dt.year
@@ -136,7 +179,15 @@ def add_timing_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def add_title_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Cheap text features from the project title. All LAUNCH."""
+    """Cheap text features from the project title. All LAUNCH.
+
+    Args:
+        df: Table with ``name``. Missing titles count as empty strings.
+
+    Returns:
+        A copy with title length, word count, "!" and digit flags, and the
+        share of letters that are upper case.
+    """
     df = df.copy()
     name = df["name"].astype("string").fillna("")
     df["name_length"] = name.str.len()
@@ -156,10 +207,19 @@ def add_title_features(df: pd.DataFrame) -> pd.DataFrame:
 def add_location_frequency(df: pd.DataFrame, reference: pd.Series | None = None) -> tuple[pd.DataFrame, pd.Series]:
     """Frequency-encode city, which has far too many levels to one-hot.
 
-    Returns (df, reference) so the notebook can FIT the frequency table on
-    the training split and APPLY it to the test split. Fitting it on the
-    full dataset is a mild form of leakage -- it lets test rows influence a
-    feature value -- and it is trivial to avoid, so we avoid it.
+    Fit the frequency table on the training split and apply it to the test
+    split. Fitting it on the full dataset would let test rows influence a
+    feature value.
+
+    Args:
+        df: Table with ``city`` and ``state_raw``.
+        reference: Campaign counts per "city, state" from a previous call.
+            If None, the counts are computed from ``df`` (the fit step).
+
+    Returns:
+        ``(df, reference)``: a copy with ``city_project_count`` (0 for
+        cities not in the reference) and ``log_city_project_count``, plus the
+        reference that was used.
     """
     df = df.copy()
     city_key = df["city"].astype("string") + ", " + df["state_raw"].astype("string")
@@ -174,8 +234,17 @@ def add_relative_goal(df: pd.DataFrame, reference: pd.Series | None = None) -> t
     """Goal relative to the median goal in the same subcategory.
 
     A $20,000 ask is ambitious for a Short Film and modest for a Video Game.
-    This feature encodes that context. Same fit/apply discipline as above --
-    the median must come from training data only.
+    Same fit/apply discipline as ``add_location_frequency``: the median must
+    come from training data only.
+
+    Args:
+        df: Table with ``goal`` and ``subcategory``.
+        reference: Median goal per subcategory from a previous call. If
+            None, the medians are computed from ``df`` (the fit step).
+
+    Returns:
+        ``(df, reference)``: a copy with ``goal_vs_subcat_median`` and
+        ``log_goal_vs_subcat_median``, plus the reference that was used.
     """
     df = df.copy()
     if reference is None:
@@ -193,9 +262,15 @@ def add_relative_goal(df: pd.DataFrame, reference: pd.Series | None = None) -> t
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Apply every stateless feature transform in order.
 
-    The two stateful transforms (add_location_frequency, add_relative_goal)
-    are deliberately NOT called here -- they need a train/test split to be
-    done honestly. Call them from the modelling notebook.
+    The two stateful transforms (``add_location_frequency``,
+    ``add_relative_goal``) are deliberately NOT called here: they need a
+    train/test split to be done honestly (see ``src.data.fit_stateful``).
+
+    Args:
+        df: The cleaned table from ``src.data.clean``.
+
+    Returns:
+        A copy with reward, goal, duration, timing and title features added.
     """
     df = add_reward_features(df)
     df = add_goal_features(df)
@@ -238,33 +313,69 @@ LAUNCH_CATEGORICAL = ["category", "subcategory", "state_raw"]
 
 # Creator behaviour during the campaign. `updates` is the single strongest
 # predictor in the dataset (success rate climbs from ~20% at 0 updates to
-# ~92% at 13+), and it is ALSO unavailable at launch. That tension is the
-# central methodological question of this project -- see notebooks/04.
+# ~92% at 13+). It is counted at the END of the campaign, so causation runs
+# partly backwards: a campaign that is funding well gets a creator who keeps
+# posting. The final model uses it; see notebooks/02_modeling.ipynb, Task 6.
 CAMPAIGN_NUMERIC = ["updates"]
 
+FEATURE_SETS = ("launch_only", "with_updates")
 
-def feature_columns(feature_set: str = "launch_only") -> tuple[list[str], list[str]]:
-    """Return (numeric_cols, categorical_cols) for a named feature set."""
+# The feature set the final model and the recommendation prototype use.
+FINAL_FEATURE_SET = "with_updates"
+
+# Fitted (stateful) numeric features added to every model matrix. They are
+# computed by src.data.fit_stateful, not by build_features.
+EXTRA_NUMERIC = ["log_city_project_count", "log_goal_vs_subcat_median"]
+
+
+def feature_columns(feature_set: str = FINAL_FEATURE_SET) -> tuple[list[str], list[str]]:
+    """Name the columns in a feature set.
+
+    Args:
+        feature_set: "launch_only" or "with_updates".
+
+    Returns:
+        ``(numeric_columns, categorical_columns)``, before one-hot encoding
+        and without ``EXTRA_NUMERIC``.
+
+    Raises:
+        ValueError: If the feature set name is unknown.
+    """
     if feature_set == "launch_only":
         return list(LAUNCH_NUMERIC), list(LAUNCH_CATEGORICAL)
-    if feature_set == "plus_campaign":
+    if feature_set == "with_updates":
         return list(LAUNCH_NUMERIC) + list(CAMPAIGN_NUMERIC), list(LAUNCH_CATEGORICAL)
-    raise ValueError(f"Unknown feature_set {feature_set!r}; use 'launch_only' or 'plus_campaign'.")
+    raise ValueError(f"Unknown feature_set {feature_set!r}; use one of {FEATURE_SETS}.")
 
 
 def build_model_matrix(
     df: pd.DataFrame,
-    feature_set: str = "launch_only",
+    feature_set: str = FINAL_FEATURE_SET,
     *,
     extra_numeric: list[str] | None = None,
     drop_first: bool = False,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """One-hot encode the categoricals and return (X, y).
+    """One-hot encode the categoricals and return the model matrix.
 
-    Cardinality is modest after cleaning -- 13 categories, 49 subcategories,
-    51 states -- so one-hot is fine and keeps coefficients interpretable for
-    the Logistic Regression baseline. City is handled by frequency encoding
-    instead (see add_location_frequency); pass it via extra_numeric.
+    Cardinality is modest after cleaning (13 categories, 49 subcategories,
+    51 states), so one-hot encoding is fine and keeps Logistic Regression
+    coefficients readable. City is frequency-encoded instead; pass
+    ``EXTRA_NUMERIC`` via ``extra_numeric`` to include it.
+
+    Args:
+        df: Featured table (needs ``success``).
+        feature_set: "launch_only" or "with_updates".
+        extra_numeric: More numeric columns to include. Names absent from
+            ``df`` are skipped silently.
+        drop_first: Drop the first level of each one-hot group.
+
+    Returns:
+        ``(X, y)``: an all-float64 matrix with missing values filled by the
+        column median of ``df`` itself, and the ``success`` column.
+
+    Raises:
+        KeyError: If a feature-set column is missing from ``df``.
+        ValueError: If a column in ``LEAKY_COLUMNS`` is requested.
     """
     numeric, categorical = feature_columns(feature_set)
     if extra_numeric:
@@ -291,3 +402,41 @@ def build_model_matrix(
     X = X.astype("float64")
     y = df["success"]
     return X, y
+
+
+def align_columns(X_train: pd.DataFrame, X_test: pd.DataFrame) -> pd.DataFrame:
+    """Force a matrix to have exactly the training matrix's columns.
+
+    One-hot encoding two halves separately produces different columns when a
+    category appears in only one of them, a silent source of wrong results.
+
+    Args:
+        X_train: The matrix whose columns are the reference.
+        X_test: The matrix to align.
+
+    Returns:
+        ``X_test`` reindexed to ``X_train``'s columns: missing columns are
+        filled with 0 (the category was absent) and extra columns dropped.
+    """
+    return X_test.reindex(columns=X_train.columns, fill_value=0.0)
+
+
+def model_matrices(train: pd.DataFrame, test: pd.DataFrame,
+                   feature_set: str = FINAL_FEATURE_SET):
+    """Build aligned train and test matrices for one feature set.
+
+    The one call every notebook uses, so all models train on identical
+    columns. ``EXTRA_NUMERIC`` is always included.
+
+    Args:
+        train: Training half from ``src.data.load_splits``.
+        test: Test half.
+        feature_set: "launch_only" or "with_updates".
+
+    Returns:
+        ``(X_train, y_train, X_test, y_test)`` with ``X_test`` aligned to
+        ``X_train``'s columns.
+    """
+    X_train, y_train = build_model_matrix(train, feature_set, extra_numeric=EXTRA_NUMERIC)
+    X_test, y_test = build_model_matrix(test, feature_set, extra_numeric=EXTRA_NUMERIC)
+    return X_train, y_train, align_columns(X_train, X_test), y_test

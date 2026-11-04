@@ -1,21 +1,31 @@
 {
-  "checks_passed": 15,
-  "checks_total": 16,
+  "checks_passed": 17,
+  "checks_total": 18,
   "checks": [
     {
-      "check": "No post-launch column among the model's features",
+      "check": "No outcome column among the model's features",
       "passed": true,
-      "detail": "137 features inspected; offending: none"
+      "detail": "138 features inspected; offending: none"
     },
     {
-      "check": "No post-launch field among the prototype's inputs",
+      "check": "`updates` is the only campaign-time feature",
       "passed": true,
-      "detail": "inputs are ['goal', 'duration', 'levels', 'reward_levels', 'category', 'subcategory', 'state_raw', 'city', 'launch_date', 'name']; overlap: none"
+      "detail": "campaign-time features in the model: ['updates']"
     },
     {
-      "check": "Every post-launch field is refused",
+      "check": "No outcome field among the prototype's inputs",
       "passed": true,
-      "detail": "7 of 7 refused: ['backers', 'comments', 'funded_percentage', 'pledged', 'status', 'success', 'updates']"
+      "detail": "inputs are ['goal', 'duration', 'levels', 'reward_levels', 'category', 'subcategory', 'state_raw', 'city', 'launch_date', 'name', 'updates']; overlap: none"
+    },
+    {
+      "check": "Every outcome field is refused",
+      "passed": true,
+      "detail": "6 of 6 refused: ['backers', 'comments', 'funded_percentage', 'pledged', 'status', 'success']"
+    },
+    {
+      "check": "A missing updates plan is refused, not guessed",
+      "passed": true,
+      "detail": "validate() without `updates` raises ValueError"
     },
     {
       "check": "Timing features come from the launch date, not the end date",
@@ -35,32 +45,32 @@
     {
       "check": "Holds up on later campaigns (chronological split)",
       "passed": true,
-      "detail": "accuracy 0.719 random vs 0.720 chronological (gap 0.1 pts); chronological floor is 0.535"
+      "detail": "accuracy 0.816 random vs 0.805 chronological (gap 1.1 pts); chronological floor is 0.535"
     },
     {
       "check": "Calibrated within 5 points per decile (random split)",
       "passed": true,
-      "detail": "largest gap 3.4 pts"
+      "detail": "largest gap 4.1 pts"
     },
     {
       "check": "Calibrated within 5 points per decile (chronological split)",
       "passed": false,
-      "detail": "largest gap 6.5 pts"
+      "detail": "largest gap 5.6 pts"
     },
     {
       "check": "Risk bands are ordered by observed success",
       "passed": true,
-      "detail": "observed success by band: High risk 19.7%, Moderate risk 43.4%, Favourable 72.9%"
+      "detail": "observed success by band: High risk 13.4%, Moderate risk 45.7%, Favourable 83.8%"
     },
     {
       "check": "Calibrated within 5 points in every city-size group",
       "passed": true,
-      "detail": "largest group gap 4.4 pts across 4 groups of 100+ campaigns"
+      "detail": "largest group gap 4.0 pts across 4 groups of 100+ campaigns"
     },
     {
       "check": "Every lever raises the prediction for 99%+ of eligible campaigns",
       "passed": true,
-      "detail": "lowest share raised across 10 candidate changes: 99.8%"
+      "detail": "lowest share raised across 10 candidate changes: 99.9%"
     },
     {
       "check": "Pattern stable across periods: tiers rise in every quartile",
@@ -80,7 +90,7 @@
     {
       "check": "No plan lowers a campaign's predicted chance",
       "passed": true,
-      "detail": "smallest gain among the 249 campaigns that received a plan: +2.0 pts (1 got none)"
+      "detail": "smallest gain among the 243 campaigns that received a plan: +2.0 pts (7 got none)"
     }
   ]
 }
