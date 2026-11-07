@@ -411,7 +411,9 @@ is shown (`reports/m4_validation_summary.json`).
 
 ## License
 
-TODO: Need to fill this out
+## License
+
+Distributed under the MIT License. See `LICENSE` for more information.
 
 ## References
 
