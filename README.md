@@ -411,8 +411,6 @@ is shown (`reports/m4_validation_summary.json`).
 
 ## License
 
-## License
-
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ## References
